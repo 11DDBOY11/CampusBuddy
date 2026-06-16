@@ -1,0 +1,28 @@
+AIET Departments:
+
+Undergraduate (UG) Departments:
+1. Computer Science and Engineering (CSE) - NBA Accredited
+2. Computer Science and Engineering - Data Science (CSD)
+3. Computer Science and Design (CSD2)
+4. Computer Science Engineering - IoT and Cyber Security including Blockchain (CSE-ICB)
+5. Artificial Intelligence and Machine Learning (AIML)
+6. Information Science and Engineering (ISE)
+7. Electronics and Communication Engineering (ECE) - NBA Accredited
+8. Mechanical Engineering (ME)
+9. Civil Engineering (CE)
+10. Agriculture Engineering
+
+Postgraduate (PG) Programs:
+1. MBA Programme
+2. M.Tech
+
+Basic Sciences and Humanities Department includes Chemistry, Mathematics, Physics, and English.
+
+NBA Accreditation:
+AIET has NBA accreditation for CSE and ECE departments for academic years 2019-20 and 2020-21.
+
+About AIET:
+Alva's Institute of Engineering and Technology is located in Mijar, Moodubidri, Dakshina Kannada, Karnataka.
+It was established in 2008 by Dr. M. Mohan Alva under Alva's Education Foundation.
+It is affiliated to Visvesvaraya Technological University (VTU), Belgaum and approved by AICTE, New Delhi.
+NAAC accredited institution. CET Code: E179.
