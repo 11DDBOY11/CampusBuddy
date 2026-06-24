@@ -292,4 +292,8 @@ Built with ❤️ at AIET, Moodubidri · Powered by Llama 3.2 · Hybrid Online/O
 
 ⭐ Star this repo if you found it useful!
 
+<<<<<<< HEAD
 </div>
+=======
+</div>
+>>>>>>> f1c2410136cb2ac30a013a53aa20b01c6aeec9ff
