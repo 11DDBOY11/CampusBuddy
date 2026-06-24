@@ -16,3 +16,4 @@ Thumbs.db
 *.h5
 *.pkl
 face/data/
+"data/face_db/" 
