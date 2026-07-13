@@ -13,6 +13,7 @@ export default function App() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [captureInfo, setCaptureInfo] = useState(null);
   const [registerStep, setRegisterStep] = useState(null);
+  const [userPhoto, setUserPhoto] = useState(null);
 
   const ws = useRef(null);
   const wakeActive = useRef(false);
@@ -41,6 +42,7 @@ export default function App() {
           updateScreen("active");
           setSubtitle(`Welcome back, ${msg.name}!`);
           setStatus("speaking");
+          setUserPhoto(msg.photo || null);   
           setIsSpeaking(true);
           break;
 
@@ -111,6 +113,7 @@ export default function App() {
 
         case "goodbye":
           setSubtitle("Goodbye! Have a great day.");
+          setUserPhoto(null); 
           setStatus("idle");
           setIsSpeaking(false);
           setTimeout(() => {
