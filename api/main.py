@@ -1,26 +1,5 @@
 import os
 import socket
-
-
-def _check_online():
-    try:
-        socket.setdefaulttimeout(1.0)
-        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(("8.8.8.8", 53))
-        return True
-    except OSError:
-        return False
-
-
-_HF_CACHE = os.path.expanduser("~/.cache/huggingface/hub")
-_MODEL_CACHED = (
-    os.path.exists(_HF_CACHE) and any("MiniLM" in d for d in os.listdir(_HF_CACHE))
-) if os.path.exists(_HF_CACHE) else False
-
-if _MODEL_CACHED and not _check_online():
-    os.environ["HF_HUB_OFFLINE"] = "1"
-    os.environ["TRANSFORMERS_OFFLINE"] = "1"
-    print("[STARTUP] Offline mode — using cached models.")
-
 import sys
 import re
 import uuid
@@ -29,6 +8,25 @@ import asyncio
 import queue
 import numpy as np
 import cv2
+
+# ── Offline/Online HuggingFace setup ──
+def _check_online():
+    try:
+        socket.setdefaulttimeout(1.0)
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(("8.8.8.8", 53))
+        return True
+    except OSError:
+        return False
+
+_HF_CACHE = os.path.expanduser("~/.cache/huggingface/hub")
+_MODEL_CACHED = os.path.exists(_HF_CACHE) and any(
+    "MiniLM" in d for d in os.listdir(_HF_CACHE)
+) if os.path.exists(_HF_CACHE) else False
+
+if _MODEL_CACHED and not _check_online():
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    print("[STARTUP] Offline mode — using cached models.")
 
 os.environ["PATH"] += os.pathsep + r"C:\Users\dkk82\AppData\Local\Microsoft\WinGet\Links"
 
@@ -40,7 +38,7 @@ from fastapi.responses import FileResponse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from rag.query import load_rag_chain, ask
-from face.database import save_face, find_closest_face, face_count
+from face.database import save_face, save_face_photo, get_face_photo_base64, find_closest_face, face_count
 from api.tts import speak, stop_speech
 from api.stt import listen_once, listen_wake_word
 
@@ -74,14 +72,14 @@ VERIFY_THRESHOLD = 0.30
 _mic_lock = asyncio.Lock()
 _wake_queue = queue.Queue()
 
-# Flag to pause wake word loop during registration or active session
 _is_registering = False
 _session_active = False
 
-EXIT_PHRASES = [
-    "bye", "goodbye", "exit", "quit", "that's all", "ok bye",
-    "thank you bye", "see you", "close", "end session"
-]
+EXIT_PHRASES = ["bye", "goodbye", "exit", "quit", "that's all", "ok bye",
+                "thank you bye", "see you", "close", "end session"]
+
+YES_WORDS = ["yes", "yeah", "yep", "yup", "confirm", "ok", "okay", "sure", "correct"]
+NO_WORDS  = ["no", "cancel", "stop", "abort", "nope"]
 
 
 def clean(text):
@@ -120,7 +118,7 @@ def _wake_word_loop():
 
 
 def open_camera():
-    """Open camera with DirectShow backend on Windows to avoid MSMF WARN errors."""
+    """Open camera with DirectShow on Windows to avoid MSMF errors."""
     try:
         cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
         if not cap.isOpened():
@@ -165,6 +163,7 @@ async def websocket_endpoint(ws: WebSocket):
     await ws.accept()
     await ws.send_json({"type": "status", "message": "connected"})
 
+    # local send — NOT imported from anywhere
     async def send(type_, **kwargs):
         await ws.send_json({"type": type_, **kwargs})
 
@@ -175,13 +174,13 @@ async def websocket_endpoint(ws: WebSocket):
             data = await ws.receive_json()
             action = data.get("action")
 
-            # ── STOP TTS ──────────────────────────────────────────────────────
+            # ── Stop TTS ──────────────────────────────
             if action == "stop":
                 stop_speech()
                 await send("speech_stopped")
                 continue
 
-            # ── IDENTIFY FACE ─────────────────────────────────────────────────
+            # ── Face identify ─────────────────────────
             elif action == "identify":
                 if not FACE_ENABLED:
                     await send("no_face")
@@ -213,6 +212,7 @@ async def websocket_endpoint(ws: WebSocket):
                 meta, dist = find_closest_face(embedding)
                 if meta and dist <= VERIFY_THRESHOLD:
                     _session_active = True
+                    photo_b64 = get_face_photo_base64(meta.get("person_id", ""))
                     await send(
                         "recognized",
                         name=meta["name"],
@@ -220,6 +220,7 @@ async def websocket_endpoint(ws: WebSocket):
                         branch=meta["branch"],
                         usn=meta.get("usn", ""),
                         verified=True,
+                        photo=photo_b64,
                     )
                     await loop.run_in_executor(
                         None, speak,
@@ -229,7 +230,7 @@ async def websocket_endpoint(ws: WebSocket):
                 else:
                     await send("no_face")
 
-            # ── CHECK WAKE WORD ───────────────────────────────────────────────
+            # ── Wake word check ───────────────────────
             elif action == "check_wake":
                 try:
                     _wake_queue.get_nowait()
@@ -238,7 +239,7 @@ async def websocket_endpoint(ws: WebSocket):
                 except queue.Empty:
                     await send("wake_timeout")
 
-            # ── LISTEN & ANSWER ───────────────────────────────────────────────
+            # ── Main listen + answer ──────────────────
             elif action == "listen":
                 async with _mic_lock:
                     await send("listening")
@@ -250,10 +251,9 @@ async def websocket_endpoint(ws: WebSocket):
                     continue
 
                 await send("transcribed", text=text)
-
                 text_lower = text.lower().strip()
 
-                # Detect goodbye
+                # Goodbye detection
                 if any(phrase in text_lower for phrase in EXIT_PHRASES):
                     farewell = "Goodbye! Have a great day. Feel free to ask me anything next time!"
                     await send("answer", text=farewell)
@@ -263,7 +263,7 @@ async def websocket_endpoint(ws: WebSocket):
                     _session_active = False
                     continue
 
-                # Detect registration intent
+                # Registration intent
                 if any(w in text_lower for w in ["register", "new user", "sign up", "enroll", "add face"]):
                     await send("start_register")
                     continue
@@ -279,17 +279,15 @@ async def websocket_endpoint(ws: WebSocket):
                 await send("speech_finished")
                 await send("auto_listen")
 
-            # ── REGISTER VOICE ────────────────────────────────────────────────
+            # ── Voice registration ────────────────────
             elif action == "register_voice":
                 if not FACE_ENABLED:
                     await send("register_failed", message="Face recognition is temporarily disabled.")
                     await loop.run_in_executor(None, speak, "Face recognition is temporarily disabled.")
                     continue
 
-                # Pause wake word loop during registration
                 _is_registering = True
 
-                # Check camera before starting
                 test_cap = open_camera()
                 if test_cap is None:
                     _is_registering = False
@@ -321,27 +319,24 @@ async def websocket_endpoint(ws: WebSocket):
                     info["designation"] = await ask_voice("What is your designation?")
                     info["usn"] = ""
 
-                # Confirmation step
+                # FIX Bug 2: ask_voice (with underscore), not askvoice
                 confirm_msg = (
                     f"I heard: Name {info['name']}, {info['role']}, {info['branch']}. "
                     f"Say yes to confirm, or say cancel to stop."
                 )
                 confirmed = await ask_voice(confirm_msg)
 
-                YES_WORDS = ["yes", "yeah", "yep", "yup", "confirm", "ok", "okay", "sure", "correct"]
-                NO_WORDS  = ["no", "cancel", "stop", "abort", "nope"]
-
                 confirmed_lower = (confirmed or "").lower().strip()
                 is_yes = any(w in confirmed_lower for w in YES_WORDS)
                 is_no  = any(w in confirmed_lower for w in NO_WORDS)
 
+                # FIX Bug 3: continue is INSIDE the if block + reset _is_registering
                 if not is_yes or is_no:
                     _is_registering = False
                     await send("register_cancelled", message="Registration cancelled.")
                     await loop.run_in_executor(None, speak, "Registration cancelled.")
                     continue
 
-                # ── FACE CAPTURE WITH LIVE CAMERA WINDOW ──────────────────────
                 ANGLES = ["straight", "left", "right", "up", "down"]
                 ANGLE_INSTRUCTIONS = {
                     "straight": "Please look straight at the camera.",
@@ -352,6 +347,8 @@ async def websocket_endpoint(ws: WebSocket):
                 }
 
                 embeddings = []
+                profile_photo_saved = False
+                person_id = str(uuid.uuid4())   # generate early so photo uses same ID
 
                 cap = open_camera()
                 if cap is None:
@@ -388,49 +385,39 @@ async def websocket_endpoint(ws: WebSocket):
                             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                             faces = face_cascade.detectMultiScale(gray, 1.1, 5)
 
-                            # ── LIVE CAMERA WINDOW WITH OVERLAY ───────────────
+                            # ── Camera preview window with live feedback ──
                             display = frame.copy()
 
                             # Brightness check
                             brightness = gray.mean()
                             if brightness < 60:
                                 cv2.putText(display, "TOO DARK — add more light!",
-                                            (20, 40), cv2.FONT_HERSHEY_SIMPLEX,
-                                            0.7, (0, 0, 255), 2)
+                                            (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                             elif brightness > 220:
                                 cv2.putText(display, "TOO BRIGHT — reduce glare!",
-                                            (20, 40), cv2.FONT_HERSHEY_SIMPLEX,
-                                            0.7, (0, 165, 255), 2)
+                                            (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
                             else:
                                 cv2.putText(display, f"Lighting: OK ({int(brightness)})",
-                                            (20, 40), cv2.FONT_HERSHEY_SIMPLEX,
-                                            0.6, (0, 255, 0), 2)
+                                            (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
                             # Draw face rectangles
                             for (x, y, w, h) in faces:
                                 cv2.rectangle(display, (x, y), (x + w, y + h), (0, 255, 0), 2)
                                 cv2.putText(display, "Face Detected!",
-                                            (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX,
-                                            0.7, (0, 255, 0), 2)
+                                            (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
                             if len(faces) == 0:
-                                cv2.putText(display, "No face — adjust position",
-                                            (20, 80), cv2.FONT_HERSHEY_SIMPLEX,
-                                            0.7, (0, 0, 255), 2)
+                                cv2.putText(display, "No face — adjust position or lighting",
+                                            (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-                            # Show current instruction at bottom
+                            # Show current angle instruction at bottom
                             cv2.putText(display, instr,
                                         (20, display.shape[0] - 20),
-                                        cv2.FONT_HERSHEY_SIMPLEX,
-                                        0.6, (0, 255, 255), 2)
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
-                            # Progress bar at top
-                            bar_width = int((i / len(ANGLES)) * display.shape[1])
-                            cv2.rectangle(display, (0, 0), (bar_width, 8), (0, 255, 0), -1)
-
-                            cv2.imshow("CampusBuddy - Face Registration", display)
+                            # Show the window
+                            cv2.imshow("CampusBuddy — Face Registration", display)
                             cv2.waitKey(1)
-                            # ─────────────────────────────────────────────────
 
                             if len(faces) > 0:
                                 try:
@@ -444,6 +431,12 @@ async def websocket_endpoint(ws: WebSocket):
                                     captured = True
                                     progress_pct = int((i + 1) / len(ANGLES) * 100)
                                     await send("capture_progress", progress=progress_pct)
+
+                                    # Save the FIRST clean straight-facing frame as profile photo
+                                    if not profile_photo_saved and angle == "straight":
+                                        save_face_photo(person_id, frame)
+                                        profile_photo_saved = True
+
                                     await loop.run_in_executor(None, speak, "Got it.")
                                 except Exception as e:
                                     print(f"[FACE] DeepFace error: {e}")
@@ -458,7 +451,8 @@ async def websocket_endpoint(ws: WebSocket):
                         break
 
                 cap.release()
-                cv2.destroyAllWindows()   # Close camera window after all angles
+                cv2.destroyAllWindows()   # close camera preview window
+
                 _is_registering = False
 
                 if camera_error:
@@ -474,7 +468,7 @@ async def websocket_endpoint(ws: WebSocket):
                 arr = np.array(embeddings)
                 avg = np.mean(arr, axis=0)
                 avg_emb = (avg / np.linalg.norm(avg)).tolist()
-                person_id = str(uuid.uuid4())
+                # person_id already generated above (used for photo saving)
 
                 save_face(person_id, avg_emb, {
                     "name":        info["name"],
