@@ -6,11 +6,11 @@ import time
 import webbrowser
 
 def start_backend():
-    subprocess.run([
+    backend = subprocess.Popen([
         sys.executable, "-m", "uvicorn",
         "api.main:app",
         "--host", "0.0.0.0",
-        "--port", "8000",
+        "--port", "8001",
         "--reload"
     ])
 
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     print("=" * 55)
     print("🎓 CampusBuddy Kiosk — Starting...")
     print("=" * 55)
-    print("\n📡 Starting FastAPI backend on port 8000...")
+    print("\n📡 Starting FastAPI backend on port 8001...")
     print("🌐 Opening UI on http://localhost:3000")
     print("\nPress Ctrl+C to stop\n")
 

@@ -175,7 +175,7 @@ async def websocket_endpoint(ws: WebSocket):
             action = data.get("action")
 
             # ── Stop TTS ──────────────────────────────
-            if action == "stop":
+            if action in ("stop", "stop_speech"):
                 stop_speech()
                 await send("speech_stopped")
                 continue

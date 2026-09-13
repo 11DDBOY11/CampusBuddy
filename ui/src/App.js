@@ -3,7 +3,7 @@ import IdleScreen from "./components/IdleScreen";
 import ActiveScreen from "./components/ActiveScreen";
 import RegisterScreen from "./components/RegisterScreen";
 
-const WS_URL = "ws://localhost:8000/ws";
+const WS_URL = "ws://localhost:8001/ws";
 
 export default function App() {
   const [screen, setScreen] = useState("idle");

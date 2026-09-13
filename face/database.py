@@ -29,7 +29,7 @@ def save_face(person_id: str, embedding: list, metadata: dict):
         embeddings=[embedding],
         metadatas=[metadata]
     )
-    print(f"✅ Face saved for: {metadata.get('name')}")
+    print(f"Face saved for: {metadata.get('name')}")
 
 
 def save_face_photo(person_id: str, frame) -> str:
@@ -40,7 +40,7 @@ def save_face_photo(person_id: str, frame) -> str:
     import cv2
     photo_path = os.path.join(FACE_PHOTOS_DIR, f"{person_id}.jpg")
     cv2.imwrite(photo_path, frame)
-    print(f"📸 Profile photo saved: {photo_path}")
+    print(f"Profile photo saved: {photo_path}")
     return photo_path
 
 

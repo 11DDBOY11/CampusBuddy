@@ -144,6 +144,7 @@ source .venv/bin/activate
 
 ```bash
 pip install -r requirements.txt
+pip install "numpy<2.0" "opencv-python<4.10.0"
 pip install tensorflow==2.15.0 keras==2.15.0
 pip install deepface==0.0.79
 pip install pyttsx3
@@ -199,7 +200,7 @@ python kiosk_f.py
 
 **Terminal 1 — Backend:**
 ```bash
-python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 **Terminal 2 — Frontend:**
