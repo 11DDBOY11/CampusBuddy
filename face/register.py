@@ -10,6 +10,7 @@ from face.database import save_face
 from gtts import gTTS
 import pygame
 import tempfile
+from PIL import Image, ImageTk
 
 
 ANGLES = ["straight", "left", "right", "up", "down"]
@@ -59,7 +60,7 @@ def open_camera():
         return None
 
 
-def capture_faces_with_angles(label_var, progress_var, root):
+def capture_faces_with_angles(label_var, progress_var, root, video_label):
     """
     Capture face embeddings across multiple head angles.
     Returns list of embeddings. Empty list means capture failed.
@@ -98,9 +99,14 @@ def capture_faces_with_angles(label_var, progress_var, root):
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 faces = face_cascade.detectMultiScale(gray, 1.1, 5)
 
-                cv2.imshow("CampusBuddy Registration - Press Q to skip angle", frame)
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    break
+                # Convert to PIL Image for Tkinter
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                preview = cv2.resize(rgb_frame, (320, 240))
+                img = Image.fromarray(preview)
+                imgtk = ImageTk.PhotoImage(image=img)
+                video_label.imgtk = imgtk
+                video_label.configure(image=imgtk)
+                root.update()
 
                 if len(faces) > 0:
                     try:
@@ -127,7 +133,6 @@ def capture_faces_with_angles(label_var, progress_var, root):
             break
 
     cap.release()
-    cv2.destroyAllWindows()
 
     if camera_error:
         label_var.set("❌ Camera stopped during capture. Check the connection.")
@@ -146,7 +151,7 @@ def average_embedding(embeddings):
 def open_registration_window():
     win = tk.Tk()
     win.title("CampusBuddy — Register Face")
-    win.geometry("480x560")
+    win.geometry("480x800")
     win.configure(bg="#1a1a2e")
     win.resizable(False, False)
 
@@ -218,6 +223,10 @@ def open_registration_window():
              font=("Segoe UI", 10), wraplength=420).pack(pady=10)
     ttk.Progressbar(win, variable=progress_var, maximum=100,
                     length=380).pack(pady=5)
+    
+    # Label to show the camera feed
+    video_label = tk.Label(win, bg="#1a1a2e")
+    video_label.pack(pady=10)
 
     def start_registration():
         name = name_var.get().strip()
@@ -241,7 +250,7 @@ def open_registration_window():
             progress_var.set(0)
             win.update()
 
-            embeddings = capture_faces_with_angles(status_var, progress_var, win)
+            embeddings = capture_faces_with_angles(status_var, progress_var, win, video_label)
 
             if len(embeddings) < 3:
                 if "Camera" not in status_var.get():
