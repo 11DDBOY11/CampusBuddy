@@ -289,7 +289,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 <div align="center">
 
-Built with ❤️ at AIET, Moodubidri · Powered by Llama 3.2 · Hybrid Online/Offline
+Built with ❤️ at AIET, Moodubidri · with ollama
 
 ⭐ Star this repo if you found it useful!
 
